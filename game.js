@@ -12,14 +12,37 @@
   const X0 = 29;
   const Y0 = H - 18.5; // Bottom floor surface Y coordinate (573.5)
 
+  // High-DPI support & Offscreen Static Background Cache for 60-144fps smoothness
+  let currentDpr = 1;
+  const bgCanvas = document.createElement('canvas');
+  const bgCtx = bgCanvas.getContext('2d');
+  let bgCacheDirty = true;
+
+  function syncCanvasDpr() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetW = Math.round(W * dpr);
+    const targetH = Math.round(H * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH || currentDpr !== dpr) {
+      currentDpr = dpr;
+      canvas.width = targetW;
+      canvas.height = targetH;
+      bgCanvas.width = targetW;
+      bgCanvas.height = targetH;
+      bgCacheDirty = true;
+    }
+    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
+  }
+  syncCanvasDpr();
+  window.addEventListener('resize', syncCanvasDpr);
+
   // Modern Minimalist Palette
   const COLORS = {
     wallFill: '#1b1e28',
     wallEdge: '#32384a',
     bgInterior: '#f4f1ea',
     bgGridDot: 'rgba(27, 30, 40, 0.085)',
-    coralBody: '#ff5a5f',
-    coralShade: '#d63c41',
+    coralBody: '#22c55e',
+    coralShade: '#16a34a',
     blueBody: '#00b4d8',
     blueShade: '#0086a3',
     grayBody: '#4a4e69',
@@ -62,11 +85,7 @@
   };
 
   // State
-  const urlParams = new URLSearchParams(window.location.search);
-  const startLvlParam = parseInt(urlParams.get('level'), 10);
-  let currentLevelIdx = (!isNaN(startLvlParam) && startLvlParam >= 1 && startLvlParam <= window.LEVELS.length)
-    ? startLvlParam - 1
-    : 4;
+  let currentLevelIdx = 0;
 
   let completedLevels = new Set();
   let mode = 'play'; // 'play' | 'level_select'
@@ -106,6 +125,7 @@
   let particles = [];
   let deathTimer = 0;
   let winTimer = 0;
+  let levelFadeAlpha = 0;
 
   // DOM HUD elements
   const hudLevelNum = document.getElementById('hud-level-num');
@@ -128,43 +148,29 @@
     return Y0 - (r + h) * TILE;
   }
 
-  function buildShellStack(size) {
-    const stack = [];
-    for (let s = 2; s <= size; s++) {
-      stack.push({ size: s, type: 'normal', paint: 'red' });
-    }
-    return stack;
-  }
-
   function syncHud() {
     const def = window.LEVELS[currentLevelIdx];
-    const numStr = String(currentLevelIdx + 1).padStart(2, '0');
-    const totStr = String(window.LEVELS.length).padStart(2, '0');
-    if (hudLevelNum) hudLevelNum.textContent = `${numStr} / ${totStr}`;
+    if (hudLevelNum) {
+      hudLevelNum.textContent = `${String(currentLevelIdx + 1).padStart(2, '0')} / ${String(window.LEVELS.length).padStart(2, '0')}`;
+    }
     if (hudLevelTitle) {
       hudLevelTitle.textContent = def.name.replace(/^Level \d+:\s*/, '');
     }
-    if (btnHint) {
-      btnHint.classList.toggle('active', showHint);
-    }
-    if (btnSkip) {
-      btnSkip.classList.toggle('hidden', !showHint);
-    }
+    if (btnHint) btnHint.classList.toggle('active', showHint);
+    if (btnSkip) btnSkip.classList.toggle('hidden', !showHint);
     if (hudLayers && player) {
       hudLayers.innerHTML = '';
+      const activeClass = player.paint === 'blue' ? ' blue' : ' filled';
       for (let i = 1; i <= 4; i++) {
         const dot = document.createElement('span');
-        dot.className = 'layer-dot' +
-          (i <= player.size ? (player.paint === 'blue' ? ' blue' : ' filled') : '');
+        dot.className = 'layer-dot' + (i <= player.size ? activeClass : '');
         hudLayers.appendChild(dot);
       }
     }
     if (jumpLabel && player) {
-      if (!player.onGround && player.size > 1 && player.paint !== 'blue') {
-        jumpLabel.textContent = `SHED (${player.size - 1})`;
-      } else {
-        jumpLabel.textContent = 'JUMP';
-      }
+      jumpLabel.textContent = (!player.onGround && player.size > 1 && player.paint !== 'blue')
+        ? `SHED (${player.size - 1})`
+        : 'JUMP';
     }
   }
 
@@ -174,17 +180,15 @@
     showHint = false;
     deathTimer = 0;
     winTimer = 0;
+    levelFadeAlpha = 0.35;
     particles = [];
+    bgCacheDirty = true;
 
     solidGrid = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-    if (def.walls) {
-      for (const [wc, wr, ww, wh] of def.walls) {
-        for (let r = wr; r < wr + wh; r++) {
-          for (let c = wc; c < wc + ww; c++) {
-            if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-              solidGrid[r][c] = true;
-            }
-          }
+    for (const [wc, wr, ww, wh] of (def.walls || [])) {
+      for (let r = wr; r < wr + wh; r++) {
+        for (let c = wc; c < wc + ww; c++) {
+          if (r >= 0 && r < ROWS && c >= 0 && c < COLS) solidGrid[r][c] = true;
         }
       }
     }
@@ -196,23 +200,23 @@
       vx: 0,
       vy: 0,
       size: pSize,
-      shellStack: buildShellStack(pSize),
+      shellStack: Array(pSize - 1).fill('normal'),
       paint: 'red',
       onGround: false,
       coyoteTimer: 0,
+      jumpBufferTimer: 0,
       facing: 1,
       scaleX: 1,
       scaleY: 1,
+      visualOffsetC: 0,
+      visualOffsetR: 0,
+      eyeLookX: 0.4,
+      eyeLookY: 0,
       dead: false,
       won: false
     };
 
-    portal = {
-      c: def.portal.c,
-      r: def.portal.r,
-      w: 4,
-      h: 4
-    };
+    portal = { c: def.portal.c, r: def.portal.r, w: 4, h: 4 };
 
     shells = (def.shells || []).map(s => ({
       c: s.c,
@@ -220,74 +224,30 @@
       vy: 0,
       size: s.size,
       type: s.type || 'normal',
-      paint: s.paint || 'red',
       cooldown: 0,
       armedToExplode: false
     }));
 
-    spikes = (def.spikes || []).map(s => ({
-      c: s.c,
-      r: s.r,
-      w: s.w || 1,
-      h: s.h || 1,
-      dir: s.dir || 'up'
-    }));
-
-    buttons = (def.buttons || []).map(b => ({
-      c: b.c,
-      r: b.r,
-      w: 2,
-      h: 0.55,
-      id: b.id,
-      pressed: false
-    }));
-
-    lasers = (def.lasers || []).map(l => ({
-      c: l.c,
-      r: l.r,
-      w: l.w || 1,
-      h: l.h || 1,
-      id: l.id,
-      active: true
-    }));
+    spikes = (def.spikes || []).map(s => ({ c: s.c, r: s.r, w: s.w || 1, h: s.h || 1 }));
+    buttons = (def.buttons || []).map(b => ({ c: b.c, r: b.r, w: 2, h: 0.55, id: b.id, pressed: false, animPress: 0 }));
+    lasers = (def.lasers || []).map(l => ({ c: l.c, r: l.r, w: l.w || 1, h: l.h || 1, id: l.id, active: true }));
 
     weakBlocks = [];
     for (const [wc, wr, ww, wh, maxS] of (def.weakBlocks || [])) {
-      const limit = maxS || 1;
+      const maxSize = maxS || 1;
       for (let r = wr; r < wr + wh; r++) {
         for (let c = wc; c < wc + ww; c++) {
-          weakBlocks.push({
-            c,
-            r,
-            w: 1,
-            h: 1,
-            maxSize: limit,
-            broken: false
-          });
+          weakBlocks.push({ c, r, w: 1, h: 1, maxSize, broken: false });
         }
       }
     }
 
-    orbs = (def.orbs || []).map(o => ({
-      c: o.c,
-      r: o.r,
-      type: o.type,
-      collected: false
-    }));
-
-    paintGates = (def.paintGates || []).map(g => ({
-      c: g.c,
-      r: g.r,
-      w: 1.2,
-      h: g.h || 4,
-      color: g.color
-    }));
-
+    orbs = (def.orbs || []).map(o => ({ c: o.c, r: o.r, type: o.type, collected: false }));
+    paintGates = (def.paintGates || []).map(g => ({ c: g.c, r: g.r, w: 1.2, h: g.h || 4, color: g.color }));
     runners = (def.runners || []).map(ru => ({
       c: ru.c,
       r: ru.r,
       vx: 5.5,
-      vy: 0,
       size: ru.size || 1,
       minC: ru.minC ?? 0,
       maxC: ru.maxC ?? COLS,
@@ -302,17 +262,11 @@
       targetWeight: wm.targetWeight,
       currentWeight: 0,
       doorRect: wm.doorRect ? [...wm.doorRect] : null,
-      doorOpen: false
+      doorOpen: false,
+      doorAnim: 0
     }));
 
-    crackedWalls = (def.crackedWalls || []).map(([cc, cr, cw, ch]) => ({
-      c: cc,
-      r: cr,
-      w: cw,
-      h: ch,
-      destroyed: false
-    }));
-
+    crackedWalls = (def.crackedWalls || []).map(([c, r, w, h]) => ({ c, r, w, h, destroyed: false }));
     arrows = def.arrows || [];
     tutorialText = def.tutorialText || [];
 
@@ -389,30 +343,29 @@
     }
   }
 
-  function performDoubleJump() {
-    if (player.size <= 1) return false;
-    if (player.paint === 'blue') return false;
+  function performDoubleJump(solids) {
+    if (player.size <= 1 || player.paint === 'blue') return false;
 
-    const outer = player.shellStack.pop() || { size: player.size, type: 'normal', paint: player.paint };
+    const outerType = player.shellStack.pop() || 'normal';
     const oldSize = player.size;
     const newSize = oldSize - 1;
+    const oldCenterC = player.c + oldSize / 2;
+    const oldR = player.r;
 
     shells.push({
       c: player.c,
       r: player.r,
       vy: -2.0,
       size: oldSize,
-      type: outer.type || 'normal',
-      paint: player.paint,
+      type: outerType,
       cooldown: 0.32,
-      armedToExplode: outer.type === 'explosive'
+      armedToExplode: outerType === 'explosive'
     });
 
     player.size = newSize;
     player.c += 0.5;
 
     let targetR = player.r + 0.95;
-    const solids = getSolidRects();
     for (const [sx, sy, sw, sh] of solids) {
       if (overlaps(player.c, targetR, newSize, newSize, sx, sy, sw, sh)) {
         targetR = sy - newSize;
@@ -420,6 +373,8 @@
     }
     player.r = Math.max(player.r, targetR);
 
+    player.visualOffsetC = (oldCenterC - newSize / 2) - player.c;
+    player.visualOffsetR = (oldR - player.r) * 0.45;
     player.vy = JUMP_VY[newSize];
     player.onGround = false;
     player.scaleX = 0.8;
@@ -431,97 +386,79 @@
     return true;
   }
 
-  function update(dt) {
-    globalTime += dt;
-    if (mode !== 'play') return;
+  function stepPhysics(dt) {
+    const solids = getSolidRects();
+    const scaleLerp = 1 - Math.exp(-16 * dt);
+    player.scaleX += (1 - player.scaleX) * scaleLerp;
+    player.scaleY += (1 - player.scaleY) * scaleLerp;
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.c += p.vx * dt;
-      p.r += p.vy * dt;
-      p.vy -= GRAVITY * 0.5 * dt;
-      p.life -= dt;
-      if (p.life <= 0) particles.splice(i, 1);
-    }
-
-    if (player.dead) {
-      deathTimer -= dt;
-      if (deathTimer <= 0) loadLevel(currentLevelIdx);
-      return;
-    }
-
-    if (player.won) {
-      winTimer -= dt;
-      player.c += (portal.c + 2 - player.size / 2 - player.c) * 10 * dt;
-      player.r += (portal.r + 2 - player.size / 2 - player.r) * 10 * dt;
-      player.scaleX *= 0.92;
-      player.scaleY *= 0.92;
-      if (winTimer <= 0) {
-        completedLevels.add(currentLevelIdx);
-        if (currentLevelIdx + 1 < window.LEVELS.length) {
-          loadLevel(currentLevelIdx + 1);
-        } else {
-          mode = 'level_select';
-        }
-      }
-      return;
-    }
-
-    player.scaleX += (1 - player.scaleX) * Math.min(1, 14 * dt);
-    player.scaleY += (1 - player.scaleY) * Math.min(1, 14 * dt);
+    const offsetDecay = Math.exp(-24 * dt);
+    player.visualOffsetC = Math.abs(player.visualOffsetC * offsetDecay) < 1e-4 ? 0 : player.visualOffsetC * offsetDecay;
+    player.visualOffsetR = Math.abs(player.visualOffsetR * offsetDecay) < 1e-4 ? 0 : player.visualOffsetR * offsetDecay;
 
     const moveLeft = keys.left || touchInput.left;
     const moveRight = keys.right || touchInput.right;
     const spd = MOVE_SPEED[player.size] || 14.0;
+    const targetVx = (moveLeft && !moveRight) ? -spd : (moveRight && !moveLeft) ? spd : 0;
 
-    if (moveLeft && !moveRight) {
-      player.vx = -spd;
-      player.facing = -1;
-    } else if (moveRight && !moveLeft) {
-      player.vx = spd;
-      player.facing = 1;
-    } else {
-      player.vx = 0;
+    if (targetVx !== 0) player.facing = Math.sign(targetVx);
+
+    const accel = targetVx !== 0
+      ? (player.onGround ? 195 : 155)
+      : (player.onGround ? 180 : 135);
+    if (player.vx < targetVx) {
+      player.vx = Math.min(targetVx, player.vx + accel * dt);
+    } else if (player.vx > targetVx) {
+      player.vx = Math.max(targetVx, player.vx - accel * dt);
     }
 
-    if (player.onGround) {
-      player.coyoteTimer = 0.09;
-    } else {
-      player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
-    }
+    const eyeLerp = 1 - Math.exp(-18 * dt);
+    const targetLookX = Math.abs(player.vx) > 0.5 ? Math.sign(player.vx) * 1.2 : player.facing * 0.4;
+    const targetLookY = Math.max(-0.9, Math.min(0.9, -player.vy * 0.04));
+    player.eyeLookX += (targetLookX - player.eyeLookX) * eyeLerp;
+    player.eyeLookY += (targetLookY - player.eyeLookY) * eyeLerp;
+
+    player.coyoteTimer = player.onGround ? 0.095 : Math.max(0, player.coyoteTimer - dt);
+    if (player.jumpBufferTimer > 0) player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
 
     if (jumpJustPressed) {
+      jumpJustPressed = false;
       if (player.onGround || player.coyoteTimer > 0) {
         player.vy = JUMP_VY[player.size];
         player.onGround = false;
         player.coyoteTimer = 0;
+        player.jumpBufferTimer = 0;
         player.scaleX = 0.84;
         player.scaleY = 1.18;
         window.sound.jump(player.size);
         syncHud();
-      } else {
-        performDoubleJump();
+      } else if (!performDoubleJump(solids)) {
+        player.jumpBufferTimer = 0.095;
       }
-      jumpJustPressed = false;
+    } else if (player.jumpBufferTimer > 0 && player.onGround) {
+      player.vy = JUMP_VY[player.size];
+      player.onGround = false;
+      player.coyoteTimer = 0;
+      player.jumpBufferTimer = 0;
+      player.scaleX = 0.84;
+      player.scaleY = 1.18;
+      window.sound.jump(player.size);
+      syncHud();
     }
 
     player.vy = Math.max(-MAX_FALL_SPEED, player.vy - GRAVITY * dt);
 
     // Move Player X
     player.c += player.vx * dt;
-    let solids = getSolidRects();
     for (const [sx, sy, sw, sh, wb] of solids) {
       if (overlaps(player.c, player.r, player.size, player.size, sx, sy, sw, sh)) {
         const stepUp = (sy + sh) - player.r;
         if (stepUp > 0 && stepUp <= 0.32 && player.vy <= 0) {
-          let canStep = true;
-          for (const [ox, oy, ow, oh] of solids) {
-            if (overlaps(player.c, sy + sh, player.size, player.size, ox, oy, ow, oh)) {
-              canStep = false;
-              break;
-            }
-          }
+          const canStep = !solids.some(([ox, oy, ow, oh]) =>
+            overlaps(player.c, sy + sh, player.size, player.size, ox, oy, ow, oh)
+          );
           if (canStep) {
+            player.visualOffsetR += player.r - (sy + sh);
             player.r = sy + sh;
             continue;
           }
@@ -537,8 +474,8 @@
     const wasOnGround = player.onGround;
     player.onGround = false;
     player.r += player.vy * dt;
-    solids = getSolidRects();
     for (const [sx, sy, sw, sh, wb] of solids) {
+      if (wb && wb.broken) continue;
       if (overlaps(player.c, player.r, player.size, player.size, sx, sy, sw, sh)) {
         if (wb) triggerWeakBlockCheck(wb, player.size);
         if (wb && wb.broken) continue;
@@ -555,9 +492,11 @@
           const overlapLeft = (player.c + player.size) - sx;
           const overlapRight = (sx + sw) - player.c;
           if (overlapLeft > 0 && overlapLeft <= 0.35) {
+            player.visualOffsetC += player.c - (sx - player.size);
             player.c = sx - player.size;
             continue;
           } else if (overlapRight > 0 && overlapRight <= 0.35) {
+            player.visualOffsetC += player.c - (sx + sw);
             player.c = sx + sw;
             continue;
           }
@@ -575,9 +514,9 @@
       sh.vy = Math.max(-MAX_FALL_SPEED, sh.vy - GRAVITY * dt);
       sh.r += sh.vy * dt;
 
-      const shSolids = getSolidRects();
       let landed = false;
-      for (const [sx, sy, sw, shH, wb] of shSolids) {
+      for (const [sx, sy, sw, shH, wb] of solids) {
+        if (wb && wb.broken) continue;
         if (overlaps(sh.c, sh.r, sh.size, sh.size, sx, sy, sw, shH)) {
           if (wb) triggerWeakBlockCheck(wb, sh.size);
           if (wb && wb.broken) continue;
@@ -626,9 +565,8 @@
         sh.c + 0.15, sh.r + 0.1, sh.size - 0.3, sh.size - 0.15
       )) {
         let newC = sh.c;
-        let newR = sh.r;
-        const checkSolids = getSolidRects();
-        for (const [sx, sy, sw, shH, wb] of checkSolids) {
+        const newR = sh.r;
+        for (const [sx, sy, sw, shH, wb] of solids) {
           if (wb && wb.broken) continue;
           if (overlaps(newC, newR, sh.size, sh.size, sx, sy, sw, shH)) {
             if (newC + sh.size > sx && newC < sx) newC = sx - sh.size;
@@ -638,15 +576,15 @@
 
         while (player.shellStack.length < sh.size - 1) {
           const nextLayerSize = player.shellStack.length + 2;
-          player.shellStack.push({
-            size: nextLayerSize,
-            type: nextLayerSize === sh.size ? sh.type : 'normal',
-            paint: sh.paint
-          });
+          player.shellStack.push(nextLayerSize === sh.size ? sh.type : 'normal');
         }
+        const prevCenterC = player.c + player.size / 2;
+        const prevR = player.r;
         player.size = sh.size;
         player.c = newC;
         player.r = newR;
+        player.visualOffsetC = (prevCenterC - sh.size / 2) - newC;
+        player.visualOffsetR = (prevR - newR) * 0.5;
         player.scaleX = 1.18;
         player.scaleY = 0.85;
         window.sound.nestShell(sh.size);
@@ -681,19 +619,17 @@
 
     // Paint Gates
     for (const g of paintGates) {
-      if (overlaps(player.c, player.r, player.size, player.size, g.c, g.r, g.w, g.h)) {
-        if (player.paint !== g.color) {
-          player.paint = g.color;
-          window.sound.paint(g.color);
-          spawnParticles(
-            player.c + player.size / 2,
-            player.r + player.size / 2,
-            g.color === 'blue' ? COLORS.blueBody : COLORS.coralBody,
-            10,
-            6
-          );
-          syncHud();
-        }
+      if (overlaps(player.c, player.r, player.size, player.size, g.c, g.r, g.w, g.h) && player.paint !== g.color) {
+        player.paint = g.color;
+        window.sound.paint(g.color);
+        spawnParticles(
+          player.c + player.size / 2,
+          player.r + player.size / 2,
+          g.color === 'blue' ? COLORS.blueBody : COLORS.coralBody,
+          10,
+          6
+        );
+        syncHud();
       }
     }
 
@@ -708,9 +644,8 @@
               killPlayer();
               return;
             }
-            const nextSize = player.size + 1;
-            player.shellStack.push({ size: nextSize, type: 'normal', paint: 'red' });
-            player.size = nextSize;
+            player.shellStack.push('normal');
+            player.size += 1;
             player.scaleX = 1.2;
             player.scaleY = 0.85;
             window.sound.orbGrow();
@@ -734,28 +669,13 @@
     }
 
     // Buttons & Lasers
+    const btnLerp = 1 - Math.exp(-22 * dt);
     for (const b of buttons) {
       const wasPressed = b.pressed;
-      b.pressed = false;
-      if (overlaps(player.c, player.r, player.size, player.size, b.c, b.r, b.w, b.h + 0.2)) {
-        b.pressed = true;
-      }
-      if (!b.pressed) {
-        for (const sh of shells) {
-          if (overlaps(sh.c, sh.r, sh.size, sh.size, b.c, b.r, b.w, b.h + 0.2)) {
-            b.pressed = true;
-            break;
-          }
-        }
-      }
-      if (!b.pressed) {
-        for (const ru of runners) {
-          if (ru.alive && overlaps(ru.c, ru.r, ru.size, ru.size, b.c, b.r, b.w, b.h + 0.2)) {
-            b.pressed = true;
-            break;
-          }
-        }
-      }
+      b.pressed = overlaps(player.c, player.r, player.size, player.size, b.c, b.r, b.w, b.h + 0.2) ||
+        shells.some(sh => overlaps(sh.c, sh.r, sh.size, sh.size, b.c, b.r, b.w, b.h + 0.2)) ||
+        runners.some(ru => ru.alive && overlaps(ru.c, ru.r, ru.size, ru.size, b.c, b.r, b.w, b.h + 0.2));
+      b.animPress += ((b.pressed ? 1 : 0) - b.animPress) * btnLerp;
       if (b.pressed && !wasPressed) window.sound.buttonPress();
       else if (!b.pressed && wasPressed) window.sound.buttonRelease();
     }
@@ -773,6 +693,7 @@
     }
 
     // Weight Meters
+    const doorLerp = 1 - Math.exp(-14 * dt);
     for (const wm of weightMeters) {
       let totalW = 0;
       if (overlaps(player.c, player.r - 0.1, player.size, player.size + 0.2, wm.c, wm.r, wm.w, wm.h + 0.3)) {
@@ -788,6 +709,7 @@
         wm.doorOpen = true;
         window.sound.buttonPress();
       }
+      wm.doorAnim = (wm.doorAnim || 0) + ((wm.doorOpen ? 1 : 0) - (wm.doorAnim || 0)) * doorLerp;
     }
 
     // Spikes
@@ -810,6 +732,55 @@
       winTimer = 0.42;
       window.sound.win();
       spawnParticles(portal.c + 2, portal.r + 2, COLORS.portalAccent, 22, 11);
+    }
+  }
+
+  function update(dt) {
+    globalTime += dt;
+    if (levelFadeAlpha > 0) {
+      levelFadeAlpha = Math.max(0, levelFadeAlpha - dt * 2.2);
+    }
+    if (mode !== 'play') return;
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.c += p.vx * dt;
+      p.r += p.vy * dt;
+      p.vy -= GRAVITY * 0.5 * dt;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    if (player.dead) {
+      deathTimer -= dt;
+      if (deathTimer <= 0) loadLevel(currentLevelIdx);
+      return;
+    }
+
+    if (player.won) {
+      winTimer -= dt;
+      const pullLerp = 1 - Math.exp(-12 * dt);
+      player.c += (portal.c + 2 - player.size / 2 - player.c) * pullLerp;
+      player.r += (portal.r + 2 - player.size / 2 - player.r) * pullLerp;
+      const shrinkFactor = Math.pow(0.008, dt);
+      player.scaleX *= shrinkFactor;
+      player.scaleY *= shrinkFactor;
+      if (winTimer <= 0) {
+        completedLevels.add(currentLevelIdx);
+        if (currentLevelIdx + 1 < window.LEVELS.length) {
+          loadLevel(currentLevelIdx + 1);
+        } else {
+          mode = 'level_select';
+        }
+      }
+      return;
+    }
+
+    const steps = Math.max(1, Math.min(4, Math.ceil(dt / (1 / 120))));
+    const stepDt = dt / steps;
+    for (let s = 0; s < steps; s++) {
+      if (player.dead || player.won) break;
+      stepPhysics(stepDt);
     }
   }
 
@@ -879,15 +850,9 @@
     const armW = 0.44 * TILE;
     const baseH = 0.94 * TILE;
 
-    let mainColor = COLORS.coralBody;
-    let shadeColor = COLORS.coralShade;
-    if (sh.type === 'explosive') {
-      mainColor = COLORS.grayBody;
-      shadeColor = COLORS.grayShade;
-    } else if (sh.paint === 'blue') {
-      mainColor = COLORS.blueBody;
-      shadeColor = COLORS.blueShade;
-    }
+    const isExplosive = sh.type === 'explosive';
+    const mainColor = isExplosive ? COLORS.grayBody : COLORS.coralBody;
+    const shadeColor = isExplosive ? COLORS.grayShade : COLORS.coralShade;
 
     ctx.save();
     const rOuter = 6;
@@ -931,18 +896,20 @@
     if (p.dead) return;
     const rawW = p.size * TILE;
     const rawH = p.size * TILE;
-    const cx = colToX(p.c) + rawW / 2;
-    const bottomY = rowToY(p.r, 0);
+    const visC = p.c + (p.visualOffsetC || 0);
+    const visR = p.r + (p.visualOffsetR || 0);
+    const cx = colToX(visC) + rawW / 2;
+    const bottomY = rowToY(visR, 0);
 
     const w = rawW * p.scaleX;
     const h = rawH * p.scaleY;
     const x = cx - w / 2;
     const y = bottomY - h;
 
-    const topShell = p.shellStack.length > 0 ? p.shellStack[p.shellStack.length - 1] : null;
+    const topShell = p.shellStack[p.shellStack.length - 1];
     let bodyColor = COLORS.coralBody;
     let shadeColor = COLORS.coralShade;
-    if (topShell && topShell.type === 'explosive') {
+    if (topShell === 'explosive') {
       bodyColor = COLORS.grayBody;
       shadeColor = COLORS.grayShade;
     } else if (p.paint === 'blue') {
@@ -972,27 +939,28 @@
       }
     }
 
-    // Minimalist geometric pill eyes with periodic blink
+    // Minimalist geometric pill eyes with periodic blink & smooth gaze interpolation
     const isBlinking = (globalTime % 4.2) > 4.06;
-    const eyeY = y + h * (p.size === 1 ? 0.44 : 0.62);
+    const lookX = p.eyeLookX !== undefined ? p.eyeLookX : (p.vx !== 0 ? Math.sign(p.vx) * 1.2 : p.facing * 0.4);
+    const lookY = p.eyeLookY || 0;
+    const eyeY = y + h * (p.size === 1 ? 0.44 : 0.62) + lookY;
     const eyeSpacing = Math.max(3.2, Math.min(6.2, TILE * 0.24 * (1 + (p.size - 1) * 0.18)));
     const eyeR = Math.max(2.2, Math.min(3.8, TILE * 0.17 * (1 + (p.size - 1) * 0.14)));
-    const lookOffset = p.vx !== 0 ? Math.sign(p.vx) * 1.2 : p.facing * 0.4;
 
     ctx.fillStyle = '#ffffff';
     if (isBlinking) {
-      ctx.fillRect(cx - eyeSpacing - eyeR + lookOffset, eyeY - 0.8, eyeR * 2, 1.6);
-      ctx.fillRect(cx + eyeSpacing - eyeR + lookOffset, eyeY - 0.8, eyeR * 2, 1.6);
+      ctx.fillRect(cx - eyeSpacing - eyeR + lookX, eyeY - 0.8, eyeR * 2, 1.6);
+      ctx.fillRect(cx + eyeSpacing - eyeR + lookX, eyeY - 0.8, eyeR * 2, 1.6);
     } else {
       ctx.beginPath();
-      ctx.arc(cx - eyeSpacing + lookOffset, eyeY, eyeR, 0, Math.PI * 2);
-      ctx.arc(cx + eyeSpacing + lookOffset, eyeY, eyeR, 0, Math.PI * 2);
+      ctx.arc(cx - eyeSpacing + lookX, eyeY, eyeR, 0, Math.PI * 2);
+      ctx.arc(cx + eyeSpacing + lookX, eyeY, eyeR, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#14161d';
       ctx.beginPath();
-      ctx.arc(cx - eyeSpacing + lookOffset * 1.4, eyeY, eyeR * 0.5, 0, Math.PI * 2);
-      ctx.arc(cx + eyeSpacing + lookOffset * 1.4, eyeY, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.arc(cx - eyeSpacing + lookX * 1.4, eyeY + lookY * 0.35, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.arc(cx + eyeSpacing + lookX * 1.4, eyeY + lookY * 0.35, eyeR * 0.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -1020,7 +988,8 @@
       const x = colToX(b.c);
       const baseY = rowToY(b.r, 0);
       const w = b.w * TILE;
-      const domeH = (b.pressed ? 0.2 : 0.48) * TILE;
+      const pressFrac = b.animPress !== undefined ? b.animPress : (b.pressed ? 1 : 0);
+      const domeH = (0.48 - pressFrac * 0.28) * TILE;
 
       ctx.fillStyle = COLORS.buttonGreen;
       drawRoundedRect(x + 2, baseY - domeH, w - 4, domeH, 4);
@@ -1107,7 +1076,7 @@
       const col = g.color === 'blue' ? COLORS.blueBody : COLORS.coralBody;
 
       ctx.save();
-      ctx.fillStyle = g.color === 'blue' ? 'rgba(0, 180, 216, 0.2)' : 'rgba(255, 90, 95, 0.2)';
+      ctx.fillStyle = g.color === 'blue' ? 'rgba(0, 180, 216, 0.2)' : 'rgba(34, 197, 94, 0.2)';
       ctx.fillRect(x, y, w, h);
 
       ctx.fillStyle = col;
@@ -1168,22 +1137,30 @@
       ctx.textAlign = 'center';
       ctx.fillText(`${wm.currentWeight}/${wm.targetWeight}`, x + w / 2, y + 6.5);
 
-      if (wm.doorRect && !wm.doorOpen) {
+      const anim = wm.doorAnim || 0;
+      if (wm.doorRect && (!wm.doorOpen || anim < 0.99)) {
         const [dc, dr, dw, dh] = wm.doorRect;
         const dx = colToX(dc);
         const dy = rowToY(dr, dh);
         const dWidth = dw * TILE;
-        const dHeight = dh * TILE;
+        const dHeight = dh * TILE * (1 - anim);
 
-        drawRoundedRect(dx, dy, dWidth, dHeight, 5);
-        ctx.fillStyle = COLORS.weightOrange;
-        ctx.fill();
+        if (dHeight > 0.5) {
+          ctx.save();
+          ctx.globalAlpha = 1 - anim * 0.7;
+          drawRoundedRect(dx, dy, dWidth, dHeight, 5);
+          ctx.fillStyle = COLORS.weightOrange;
+          ctx.fill();
 
-        ctx.fillStyle = '#14161d';
-        ctx.font = '800 15px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(wm.targetWeight), dx + dWidth / 2, dy + dHeight / 2);
+          if (dHeight >= 16) {
+            ctx.fillStyle = '#14161d';
+            ctx.font = '800 15px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(wm.targetWeight), dx + dWidth / 2, dy + dHeight / 2);
+          }
+          ctx.restore();
+        }
       }
     }
 
@@ -1211,31 +1188,31 @@
     }
   }
 
-  function drawTutorialHelpers() {
+  function drawTutorialHelpers(targetCtx = ctx) {
     for (const a of arrows) {
       const x = colToX(a.c);
       const y = rowToY(a.r, 0);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(27, 30, 40, 0.32)';
-      ctx.lineWidth = 2.2;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(x - 28, y + 24);
-      ctx.quadraticCurveTo(x, y - 16, x + 18, y + 4);
-      ctx.quadraticCurveTo(x + 36, y - 34, x + 64, y - 18);
-      ctx.stroke();
-      ctx.restore();
+      targetCtx.save();
+      targetCtx.strokeStyle = 'rgba(27, 30, 40, 0.32)';
+      targetCtx.lineWidth = 2.2;
+      targetCtx.setLineDash([5, 5]);
+      targetCtx.beginPath();
+      targetCtx.moveTo(x - 28, y + 24);
+      targetCtx.quadraticCurveTo(x, y - 16, x + 18, y + 4);
+      targetCtx.quadraticCurveTo(x + 36, y - 34, x + 64, y - 18);
+      targetCtx.stroke();
+      targetCtx.restore();
     }
 
     for (const t of tutorialText) {
       const x = colToX(t.c);
       const y = rowToY(t.r, 0);
-      ctx.save();
-      ctx.fillStyle = 'rgba(27, 30, 40, 0.65)';
-      ctx.font = '600 13px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(t.text, x, y);
-      ctx.restore();
+      targetCtx.save();
+      targetCtx.fillStyle = 'rgba(27, 30, 40, 0.65)';
+      targetCtx.font = '600 13px sans-serif';
+      targetCtx.textAlign = 'left';
+      targetCtx.fillText(t.text, x, y);
+      targetCtx.restore();
     }
   }
 
@@ -1362,21 +1339,18 @@
     });
   }
 
-  function render() {
-    if (mode === 'level_select') {
-      drawLevelSelectScreen();
-      return;
-    }
+  function rebuildBgCache() {
+    bgCtx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
 
     // 1. Matte dark architectural background
-    ctx.fillStyle = COLORS.wallFill;
-    ctx.fillRect(0, 0, W, H);
+    bgCtx.fillStyle = COLORS.wallFill;
+    bgCtx.fillRect(0, 0, W, H);
 
     // 2. Seamless warm minimalist ivory playfield + solid wall blocks
-    ctx.fillStyle = COLORS.bgInterior;
-    ctx.fillRect(X0, rowToY(ROWS, 0), COLS * TILE, ROWS * TILE);
+    bgCtx.fillStyle = COLORS.bgInterior;
+    bgCtx.fillRect(X0, rowToY(ROWS, 0), COLS * TILE, ROWS * TILE);
 
-    ctx.fillStyle = COLORS.wallFill;
+    bgCtx.fillStyle = COLORS.wallFill;
     for (let r = 0; r < ROWS; r++) {
       const y = Math.floor(rowToY(r, 1));
       const h = Math.ceil(rowToY(r, 0)) - y;
@@ -1388,26 +1362,26 @@
         } else if (!solid && runStart !== -1) {
           const rx = Math.floor(colToX(runStart));
           const rw = Math.ceil(colToX(c)) - rx;
-          ctx.fillRect(rx, y, rw, h);
+          bgCtx.fillRect(rx, y, rw, h);
           runStart = -1;
         }
       }
     }
 
     // 3. Subtle minimalist geometric grid dots inside open air
-    ctx.fillStyle = COLORS.bgGridDot;
+    bgCtx.fillStyle = COLORS.bgGridDot;
     for (let r = 1; r < ROWS; r += 2) {
       for (let c = 1; c < COLS; c += 2) {
         if (!solidGrid[r][c] && !solidGrid[r - 1][c] && !solidGrid[r][c - 1]) {
-          ctx.fillRect(colToX(c) - 1, rowToY(r, 0) - 1, 2, 2);
+          bgCtx.fillRect(colToX(c) - 1, rowToY(r, 0) - 1, 2, 2);
         }
       }
     }
 
     // 4. Crisp architectural contour lines along solid wall edges
-    ctx.strokeStyle = COLORS.wallEdge;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
+    bgCtx.strokeStyle = COLORS.wallEdge;
+    bgCtx.lineWidth = 1.6;
+    bgCtx.beginPath();
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         if (solidGrid[r][c]) continue;
@@ -1415,27 +1389,43 @@
         const y = rowToY(r, 1);
 
         if (isCellSolid(c - 1, r)) {
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y + TILE);
+          bgCtx.moveTo(x, y);
+          bgCtx.lineTo(x, y + TILE);
         }
         if (isCellSolid(c + 1, r)) {
-          ctx.moveTo(x + TILE, y);
-          ctx.lineTo(x + TILE, y + TILE);
+          bgCtx.moveTo(x + TILE, y);
+          bgCtx.lineTo(x + TILE, y + TILE);
         }
         if (isCellSolid(c, r - 1)) {
-          ctx.moveTo(x, y + TILE);
-          ctx.lineTo(x + TILE, y + TILE);
+          bgCtx.moveTo(x, y + TILE);
+          bgCtx.lineTo(x + TILE, y + TILE);
         }
         if (isCellSolid(c, r + 1)) {
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + TILE, y);
+          bgCtx.moveTo(x, y);
+          bgCtx.lineTo(x + TILE, y);
         }
       }
     }
-    ctx.stroke();
+    bgCtx.stroke();
 
-    // 5. Entities
-    drawTutorialHelpers();
+    // 5. Static tutorial helpers baked into level background
+    drawTutorialHelpers(bgCtx);
+    bgCacheDirty = false;
+  }
+
+  function render() {
+    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
+    if (mode === 'level_select') {
+      drawLevelSelectScreen();
+      return;
+    }
+
+    if (bgCacheDirty) {
+      rebuildBgCache();
+    }
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    // Dynamic Entities
     drawWeakBlocks();
     drawButtonsAndLasers();
     drawPaintGates();
@@ -1461,6 +1451,13 @@
     }
 
     drawHintOverlay();
+
+    if (levelFadeAlpha > 0.005) {
+      ctx.save();
+      ctx.fillStyle = `rgba(20, 22, 29, ${levelFadeAlpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
   }
 
   // =========================================================================
@@ -1489,12 +1486,6 @@
       const muted = window.sound.toggleMute();
       if (iconSoundOn) iconSoundOn.classList.toggle('hidden', muted);
       if (iconSoundOff) iconSoundOff.classList.toggle('hidden', !muted);
-    } else if (code === 'BracketLeft') {
-      mode = 'play';
-      loadLevel(currentLevelIdx - 1);
-    } else if (code === 'BracketRight') {
-      mode = 'play';
-      loadLevel(currentLevelIdx + 1);
     }
   });
 
@@ -1582,28 +1573,6 @@
     dpadZone.addEventListener('touchcancel', updateDpadFromTouches, { passive: false });
   }
 
-  // Pointer fallback for desktop clicking on on-screen buttons
-  if (btnTouchLeft) {
-    btnTouchLeft.addEventListener('mousedown', () => {
-      window.sound.init();
-      touchInput.left = true;
-      btnTouchLeft.classList.add('pressed');
-    });
-    window.addEventListener('mouseup', () => {
-      touchInput.left = false;
-      touchInput.right = false;
-      btnTouchLeft.classList.remove('pressed');
-      if (btnTouchRight) btnTouchRight.classList.remove('pressed');
-    });
-  }
-  if (btnTouchRight) {
-    btnTouchRight.addEventListener('mousedown', () => {
-      window.sound.init();
-      touchInput.right = true;
-      btnTouchRight.classList.add('pressed');
-    });
-  }
-
   if (btnTouchJump) {
     btnTouchJump.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -1615,10 +1584,6 @@
       e.preventDefault();
       btnTouchJump.classList.remove('pressed');
     }, { passive: false });
-    btnTouchJump.addEventListener('mousedown', () => {
-      window.sound.init();
-      jumpJustPressed = true;
-    });
   }
 
   // Canvas pointer/touch for Level Select Grid
@@ -1677,11 +1642,5 @@
   }
 
   loadLevel(currentLevelIdx);
-  window.__game = {
-    getState: () => ({ currentLevelIdx, mode, showHint, player, portal, shells, buttons, lasers, weakBlocks, orbs, paintGates, runners, weightMeters, crackedWalls }),
-    loadLevel,
-    update,
-    render
-  };
   requestAnimationFrame(loop);
 })();

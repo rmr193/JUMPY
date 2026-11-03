@@ -19,7 +19,6 @@ window.LEVELS = [
   // LEVEL 1: Tutorial - Basic Jump & Double Jump (Shedding Shell)
   // =========================================================================
   {
-    id: 1,
     name: "Level 1: Shed Your Shell",
     hintText: "Move right with A/D or Arrow keys. Jump up the steps with W/Up. At the top step, press W/Up a SECOND time in mid-air to jump out of your shell and reach the high portal!",
     hintPath: [[14, 6], [22, 10], [30, 14], [36, 18], [41, 24]],
@@ -34,13 +33,12 @@ window.LEVELS = [
       [28, 10, 10, 4],  // Step 2 (top at r=14)
       [38, 6, 10, 16]   // High portal platform (top at r=22, +8 above r=14 -> requires double jump!)
     ],
-    shells: [],
     arrows: [
-      { c: 33, r: 16, type: 'double_jump' }
+      { c: 33, r: 16 }
     ],
     tutorialText: [
       { c: 15, r: 18, text: "A / D or ◀ / ▶ : Move" },
-      { c: 28, r: 26, text: "Press W / ▲ twice in mid-air to jump out of shell!" }
+      { c: 23, r: 27, text: "Press W / ▲ twice in mid-air to jump out of shell!" }
     ]
   },
 
@@ -48,7 +46,6 @@ window.LEVELS = [
   // LEVEL 2: Tutorial - Run & Double Jump Across Gap
   // =========================================================================
   {
-    id: 2,
     name: "Level 2: Leap of Faith",
     hintText: "Run right and jump from the edge, then double-jump at the peak of your jump to shed your 2x2 shell and land on the right ledge. Hop up the floating blocks to the portal!",
     hintPath: [[12, 11], [20, 16], [27, 19], [36, 22], [44, 25]],
@@ -69,7 +66,7 @@ window.LEVELS = [
       { c: 15, r: 4, size: 2 } // Extra shell at bottom in case player falls
     ],
     arrows: [
-      { c: 21, r: 14, type: 'double_jump' }
+      { c: 21, r: 14 }
     ]
   },
 
@@ -77,7 +74,6 @@ window.LEVELS = [
   // LEVEL 3: Nesting Into a Larger 3x3 Shell
   // =========================================================================
   {
-    id: 3,
     name: "Level 3: Russian Dolls",
     hintText: "Hop up the right floating platforms while keeping your 2x2 shell to nest into the larger 3x3 shell at the top-right. Then drop back down to the left and triple-jump into the high left portal!",
     hintPath: [[18, 5], [27, 10], [36, 15], [44, 19], [18, 5], [12, 24]],
@@ -102,7 +98,6 @@ window.LEVELS = [
   // LEVEL 4: Double-Jump to Upgrade Shells
   // =========================================================================
   {
-    id: 4,
     name: "Level 4: Step by Step",
     hintText: "Jump onto the middle platform, double-jump to the upper-left ledge to grab the 2x2 shell, then jump right into the 3x3 shell. Drop to the floor and triple-jump up the right shaft to the portal!",
     hintPath: [[20, 5], [20, 10], [12, 18], [26, 21], [38, 5], [44, 24]],
@@ -129,7 +124,6 @@ window.LEVELS = [
   // LEVEL 5: EXACT PIXEL-FOR-PIXEL MATCH OF UPLOADED SCREENSHOT!
   // =========================================================================
   {
-    id: 5,
     name: "Level 5: The Shell Citadel",
     hintText: "1) Climb the middle platforms to get the 2x2 shell. 2) Go to the right room, climb up and double-jump to the right 2x2 shell, then jump to the top-left 3x3 shell. 3) Bring the 3x3 shell to the far-left room, double-jump from the floor to the middle 3x3 shell, then jump up to the 4x4 shell. 4) Walk back to the center shaft and quadruple-jump into the portal!",
     hintPath: [
@@ -176,7 +170,6 @@ window.LEVELS = [
   // LEVEL 6: Debut of Spikes
   // =========================================================================
   {
-    id: 6,
     name: "Level 6: Sharp Edges",
     hintText: "Spikes kill you on contact! Jump over the bottom spikes, double-jump out of your 2x2 shell to squeeze through the narrow 1-tile tunnel, then nest into the right 2x2 shell and double-jump to the portal.",
     hintPath: [[10, 6], [22, 10], [32, 14], [42, 6], [45, 19]],
@@ -193,8 +186,8 @@ window.LEVELS = [
       [42, 18, 8, 1]    // Portal platform (top at r=19)
     ],
     spikes: [
-      { c: 15, r: 6, w: 4, dir: 'up' },
-      { c: 37, r: 6, w: 4, dir: 'up' }
+      { c: 15, r: 6, w: 4 },
+      { c: 37, r: 6, w: 4 }
     ],
     shells: [
       { c: 44, r: 6, size: 2 }
@@ -205,7 +198,6 @@ window.LEVELS = [
   // LEVEL 7: Shells Fall Through Spikes
   // =========================================================================
   {
-    id: 7,
     name: "Level 7: Spike Sieve",
     hintText: "Empty shells pass harmlessly through spikes! Jump over the spike shaft and double-jump directly above it so your 2x2 shell falls through the spikes to the bottom floor. Take the right passage down, reclaim your shell, and double-jump to the portal!",
     hintPath: [[12, 20], [23, 24], [32, 20], [32, 6], [23, 6], [14, 14]],
@@ -223,16 +215,14 @@ window.LEVELS = [
       [40, 14, 10, 1]   // Portal ledge on right (top at r=15)
     ],
     spikes: [
-      { c: 22, r: 19, w: 4, dir: 'up' } // Spikes across shaft at r=19!
-    ],
-    shells: []
+      { c: 22, r: 19, w: 4 } // Spikes across shaft at r=19!
+    ]
   },
 
   // =========================================================================
   // LEVEL 8: Debut of Green Buttons & Orange Lasers
   // =========================================================================
   {
-    id: 8,
     name: "Level 8: Laser Lock",
     hintText: "Drop your 2x2 shell onto the green floor button to turn off the orange laser! Then walk through the open gate, grab the spare 2x2 shell, and double-jump up to the portal.",
     hintPath: [[12, 6], [20, 11], [20, 6], [36, 6], [44, 16]],
@@ -261,7 +251,6 @@ window.LEVELS = [
   // LEVEL 9: Dual Laser Gates
   // =========================================================================
   {
-    id: 9,
     name: "Level 9: Double Security",
     hintText: "Collect both 2x2 shells and drop one on each green button to disable both orange lasers guarding the portal!",
     hintPath: [[12, 6], [18, 12], [28, 12], [25, 6], [35, 6], [45, 6]],
@@ -294,7 +283,6 @@ window.LEVELS = [
   // LEVEL 10: Cramped Laser Tunnel
   // =========================================================================
   {
-    id: 10,
     name: "Level 10: Tight Squeeze",
     hintText: "Grab the 2x2 shell on the left, drop it onto the button in the pit to disable the laser in the 1-tile-tall tunnel, then slip through as 1x1 to reach the portal!",
     hintPath: [[25, 12], [12, 12], [19, 10], [38, 12], [45, 12]],
@@ -327,7 +315,6 @@ window.LEVELS = [
   // LEVEL 11: Spike Pit Button Drop
   // =========================================================================
   {
-    id: 11,
     name: "Level 11: Precision Drop",
     hintText: "Jump across the spike pit and double-jump right above the green button so your shed shell drops through the spikes onto the button, turning off the laser on the right!",
     hintPath: [[12, 14], [26, 18], [38, 14], [45, 14]],
@@ -343,22 +330,20 @@ window.LEVELS = [
       [40, 20, 2, 10]   // Laser top wall
     ],
     spikes: [
-      { c: 20, r: 13, w: 12, dir: 'up' }
+      { c: 20, r: 13, w: 12 }
     ],
     buttons: [
       { c: 25, r: 6, id: 1 }
     ],
     lasers: [
       { c: 40, r: 14, h: 6, id: 1 }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 12: Multi-Layer Shell Relay
   // =========================================================================
   {
-    id: 12,
     name: "Level 12: Shell Relay",
     hintText: "Drop your outer 3x3 shell onto the left button to open the first laser, then drop your 2x2 shell onto the middle button to open the second laser and enter the portal!",
     hintPath: [[12, 6], [18, 6], [28, 6], [36, 6], [45, 6]],
@@ -379,15 +364,13 @@ window.LEVELS = [
     lasers: [
       { c: 24, r: 6, h: 6, id: 1 },
       { c: 39, r: 6, h: 6, id: 2 }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 13: Debut of Weak Platforms (Hollow Purple Blocks)
   // =========================================================================
   {
-    id: 13,
     name: "Level 13: Fragile Bridges",
     hintText: "Hollow purple blocks break if touched by anything larger than 1x1! Shed your 2x2 shell down the shaft before the weak bridge so it lands near the portal, then walk lightly across the purple bridge as 1x1, reclaim your shell, and jump to the portal!",
     hintPath: [[12, 16], [20, 20], [32, 16], [38, 6], [45, 14]],
@@ -407,16 +390,14 @@ window.LEVELS = [
       [23, 15, 11, 1, 1]
     ],
     spikes: [
-      { c: 23, r: 6, w: 11, dir: 'up' } // Spikes under the weak bridge!
-    ],
-    shells: []
+      { c: 23, r: 6, w: 11 } // Spikes under the weak bridge!
+    ]
   },
 
   // =========================================================================
   // LEVEL 14: Bust Through Weak Floor, Walk Across Weak Bridge
   // =========================================================================
   {
-    id: 14,
     name: "Level 14: Heavy Impact",
     hintText: "Step onto the first purple floor while wearing your 2x2 shell to smash through it to the lower room! Then double-jump to shed your shell onto the button and walk across the lower purple bridge as 1x1.",
     hintPath: [[12, 20], [20, 20], [20, 6], [28, 6], [44, 6]],
@@ -437,22 +418,20 @@ window.LEVELS = [
       [30, 7, 10, 1, 1]  // Weak bridge over spikes to cross as 1x1
     ],
     spikes: [
-      { c: 30, r: 6, w: 10, dir: 'up' }
+      { c: 30, r: 6, w: 10 }
     ],
     buttons: [
       { c: 21, r: 6, id: 1 }
     ],
     lasers: [
       { c: 40, r: 8, h: 4, id: 1 }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 15: Selective Bridge Carving
   // =========================================================================
   {
-    id: 15,
     name: "Level 15: Surgical Strike",
     hintText: "Jump and shed your 2x2 shell mid-air over the button gap so the falling 2x2 shell smashes ONLY the purple blocks above the button while you land on the intact purple bridge as 1x1!",
     hintPath: [[12, 16], [24, 21], [36, 16], [44, 16]],
@@ -471,23 +450,21 @@ window.LEVELS = [
       [18, 15, 18, 1, 1] // Continuous weak bridge from c=18 to c=35
     ],
     spikes: [
-      { c: 18, r: 6, w: 5, dir: 'up' },
-      { c: 28, r: 6, w: 8, dir: 'up' }
+      { c: 18, r: 6, w: 5 },
+      { c: 28, r: 6, w: 8 }
     ],
     buttons: [
       { c: 25, r: 6, id: 1 }
     ],
     lasers: [
       { c: 40, r: 16, h: 6, id: 1 }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 16: Weak Stepping Stones
   // =========================================================================
   {
-    id: 16,
     name: "Level 16: Tiptoe & Stomp",
     hintText: "Tiptoe across the fragile purple blocks as 1x1 to the right room, nest into the 2x2 and 3x3 shells, then use the high solid platforms to return and triple-jump into the top portal!",
     hintPath: [[12, 8], [26, 8], [42, 8], [45, 14], [32, 18], [18, 24]],
@@ -510,7 +487,7 @@ window.LEVELS = [
       [31, 7, 4, 1, 1]
     ],
     spikes: [
-      { c: 16, r: 6, w: 20, dir: 'up' }
+      { c: 16, r: 6, w: 20 }
     ],
     shells: [
       { c: 39, r: 8, size: 2 },
@@ -522,7 +499,6 @@ window.LEVELS = [
   // LEVEL 17: Weak Trapdoor Smash
   // =========================================================================
   {
-    id: 17,
     name: "Level 17: Crash Down",
     hintText: "Climb up as 1x1 over the weak stairs, grab the 2x2 shell at the top, and stomp through the purple trapdoor protecting the portal!",
     hintPath: [[12, 6], [18, 10], [24, 14], [30, 18], [42, 18], [42, 8]],
@@ -551,7 +527,6 @@ window.LEVELS = [
   // LEVEL 18: Debut of Red Grow Orbs (+)
   // =========================================================================
   {
-    id: 18,
     name: "Level 18: Power Growth",
     hintText: "Red (+) Orbs instantly grow your character by one shell layer! Collect the three (+) Orbs to grow from 1x1 up to 4x4, then quadruple-jump up the shaft to the portal!",
     hintPath: [[12, 6], [20, 6], [28, 6], [36, 6], [42, 26]],
@@ -568,15 +543,13 @@ window.LEVELS = [
       { c: 19, r: 7, type: 'grow' },
       { c: 27, r: 8, type: 'grow' },
       { c: 35, r: 9, type: 'grow' }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 19: Farming Shells with Grow Orbs
   // =========================================================================
   {
-    id: 19,
     name: "Level 19: Shell Factory",
     hintText: "Touch the first (+) Orb to become 2x2, double-jump to drop that shell onto the first button, touch the second (+) Orb, drop that shell onto the second button, and touch the third (+) Orb to double-jump to the portal!",
     hintPath: [[12, 6], [16, 7], [22, 6], [28, 7], [34, 6], [39, 7], [45, 16]],
@@ -603,15 +576,13 @@ window.LEVELS = [
     lasers: [
       { c: 25, r: 6, h: 6, id: 1 },
       { c: 37, r: 6, h: 6, id: 2 }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 20: Grow Orbs & Fragile Ceilings
   // =========================================================================
   {
-    id: 20,
     name: "Level 20: Size Matters",
     hintText: "Cross the weak bridge as 1x1 before touching the (+) Orbs on the right. Once grown to 3x3, stomp through the weak floor to reach the lower portal!",
     hintPath: [[12, 16], [26, 16], [42, 16], [30, 16], [30, 6]],
@@ -631,15 +602,13 @@ window.LEVELS = [
     orbs: [
       { c: 40, r: 17, type: 'grow' },
       { c: 45, r: 17, type: 'grow' }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 21: Debut of Purple Shrink Orbs (-)
   // =========================================================================
   {
-    id: 21,
     name: "Level 21: Downsizing",
     hintText: "Purple (-) Orbs remove your outer shell without dropping it (and kill you if you are already 1x1!). Jump up as 3x3, touch the (-) Orbs to shrink down to 1x1 so you can cross the fragile purple bridge to the portal!",
     hintPath: [[12, 6], [20, 13], [28, 20], [38, 20], [45, 20]],
@@ -662,16 +631,14 @@ window.LEVELS = [
       { c: 30, r: 21, type: 'shrink' }
     ],
     spikes: [
-      { c: 25, r: 6, w: 25, dir: 'up' }
-    ],
-    shells: []
+      { c: 25, r: 6, w: 25 }
+    ]
   },
 
   // =========================================================================
   // LEVEL 22: Debut of Blue & Red Paint Gates
   // =========================================================================
   {
-    id: 22,
     name: "Level 22: Coat of Paint",
     hintText: "Blue Paint locks your shell so you cannot double-jump or trigger size orbs! Walk through the Blue Paint Gate to safely pass through the deadly (-) Shrink Orbs, then pass through the Red Paint Gate to unlock your shell and double-jump to the portal!",
     hintPath: [[11, 6], [18, 6], [28, 6], [38, 6], [44, 16]],
@@ -693,15 +660,13 @@ window.LEVELS = [
       { c: 25, r: 7, type: 'shrink' },
       { c: 29, r: 7, type: 'shrink' },
       { c: 32, r: 7, type: 'shrink' }
-    ],
-    shells: []
+    ]
   },
 
   // =========================================================================
   // LEVEL 23: Red Square Runners & Weight Meters
   // =========================================================================
   {
-    id: 23,
     name: "Level 23: Heavyweight Champion",
     hintText: "Grab the 2x2 and 3x3 shells on the left so you are larger than the angry Red Square enemy and crush it! Then stand on the Orange Weight Meter as a 3x3 player (weight = 9) to open the '9' numbered door!",
     hintPath: [[12, 6], [12, 12], [20, 17], [30, 6], [38, 6], [45, 6]],
@@ -732,7 +697,6 @@ window.LEVELS = [
   // LEVEL 24: Grand Finale - Striped Shells & Explosive Gray Shells
   // =========================================================================
   {
-    id: 24,
     name: "Level 24: Explosive Finale",
     hintText: "Yellow-striped shells let you enter even if you skip a size! Enter the 2x2 Gray Explosive Shell, jump and shed it on top of the cracked wall to blast it open, then grab the Striped 3x3 Shell and triple-jump into the final portal!",
     hintPath: [[12, 14], [18, 14], [28, 18], [28, 6], [36, 6], [44, 22]],

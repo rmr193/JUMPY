@@ -14,7 +14,7 @@
   --border-subtle: rgba(255, 255, 255, 0.08);
   --text-primary: #f3f1ec;
   --text-muted: #8b92a5;
-  --accent-coral: #ff5a5f;
+  --accent-coral: #22c55e;
   --accent-amber: #ffbe0b;
 }
 
@@ -150,7 +150,7 @@ html, body {
 
 .layer-dot.filled {
   background: var(--accent-coral);
-  box-shadow: 0 0 8px rgba(255, 90, 95, 0.5);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
 .layer-dot.blue {
@@ -171,25 +171,31 @@ html, body {
 
 #game-canvas {
   display: block;
+  width: min(100%, 928px, calc((100dvh - 68px) * 928 / 592));
   max-width: 100%;
   max-height: 100%;
-  width: auto;
   height: auto;
   aspect-ratio: 928 / 592;
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 
-/* Mobile-Friendly Ergonomic Touch Controls */
+/* Mobile-Friendly Ergonomic Touch Controls (Hidden on laptop/desktop) */
 #touch-controls {
   width: 100%;
   max-width: 928px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   padding: 6px 6px 4px;
   flex-shrink: 0;
   z-index: 10;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #touch-controls {
+    display: flex;
+  }
 }
 
 .touch-dpad {
