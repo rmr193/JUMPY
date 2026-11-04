@@ -30,6 +30,12 @@
       bgCanvas.height = targetH;
       bgCacheDirty = true;
     }
+    const stage = document.getElementById('stage');
+    if (stage && stage.clientWidth > 0 && stage.clientHeight > 0 && canvas.style) {
+      const scale = Math.min(stage.clientWidth / W, (stage.clientHeight - 8) / H, 1);
+      canvas.style.width = `${Math.floor(W * scale)}px`;
+      canvas.style.height = `${Math.floor(H * scale)}px`;
+    }
     ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
   }
   syncCanvasDpr();
